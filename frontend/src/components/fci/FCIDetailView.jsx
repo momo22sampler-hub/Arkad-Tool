@@ -128,7 +128,7 @@ export default function FCIDetailView({ fci, onBack }) {
       setLoadingHistorico(true);
       try {
         const dias = diasPorPeriodo[periodo];
-        const url = `http://localhost:18000/api/v1/fcis/historico?fondo=${encodeURIComponent(nombreFondo)}&dias=${dias}`;
+        const url = `https://arkad-tool.onrender.com/api/v1/fcis/historico?fondo=${encodeURIComponent(nombreFondo)}&dias=${dias}`;
         const res = await fetch(url);
         const data = await res.json();
         setHistoricoReal(Array.isArray(data) ? data : []);

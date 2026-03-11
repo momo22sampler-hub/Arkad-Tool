@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 
-const API_BASE = 'http://localhost:18000';
+const API_BASE = 'https://arkad-tool.onrender.com';
 
 const FinancialTicker = () => {
   const [tickerItems, setTickerItems] = useState([]);

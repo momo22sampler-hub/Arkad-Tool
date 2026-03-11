@@ -511,7 +511,7 @@ export default function FCIRankingDashboard() {
   const [openCat, setOpenCat] = useState(null);
 
   useEffect(() => {
-    fetch("http://localhost:18000/api/v1/fcis/ranking")
+    fetch("https://arkad-tool.onrender.com/api/v1/fcis/ranking")
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();

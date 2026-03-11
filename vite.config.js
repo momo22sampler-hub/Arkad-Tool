@@ -8,7 +8,7 @@ export default defineConfig({
     allowedHosts: "all",
     proxy: {
       '/api': {
-        target: 'http://localhost:18000',
+        target: 'https://arkad-tool.onrender.com',
         changeOrigin: true,
       }
     }

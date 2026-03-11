@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Activity, Clock, Wallet, Landmark, Minus, Info, ChevronDown, ChevronUp } from 'lucide-react';
 
-const API_MACRO      = 'http://localhost:18000/api/v1/macro';
-const API_CAUCIONES  = 'http://localhost:18000/api/v1/cauciones';
-const API_BILLETERAS = 'http://localhost:18000/api/v1/billeteras';
+const API_MACRO      = 'https://arkad-tool.onrender.com/api/v1/macro';
+const API_CAUCIONES  = 'https://arkad-tool.onrender.com/api/v1/cauciones';
+const API_BILLETERAS = 'https://arkad-tool.onrender.com/api/v1/billeteras';
 
 const theme = {
     bg:      '#020617',

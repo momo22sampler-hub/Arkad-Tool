@@ -383,7 +383,7 @@ export default function RankingDashboard() {
   const [error, setError]     = useState(null);
 
   useEffect(() => {
-    fetch("http://localhost:18000/api/v1/ranking")
+    fetch("https://arkad-tool.onrender.com/api/v1/ranking")
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();

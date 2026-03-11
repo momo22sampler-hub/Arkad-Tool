@@ -37,7 +37,7 @@ function App() {
   };
 
   useEffect(() => {
-    fetch('http://localhost:18000/api/v1/market-data')
+    fetch('https://arkad-tool.onrender.com/api/v1/market-data')
       .then(res => res.json())
       .then(data => {
         console.log("API Response:", data);
@@ -57,7 +57,7 @@ function App() {
 
   // Cauciones desde Supabase (ya incluye deduplicación en backend)
   useEffect(() => {
-    fetch('http://localhost:18000/api/v1/cauciones')
+    fetch('https://arkad-tool.onrender.com/api/v1/cauciones')
       .then(res => res.json())
       .then(data => {
         setCauciones(Array.isArray(data) ? data : []);
@@ -70,7 +70,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    fetch('http://localhost:18000/api/v1/fci')
+    fetch('https://arkad-tool.onrender.com/api/v1/fci')
       .then(res => res.json())
       .then(data => {
         const normalized = (Array.isArray(data) ? data : []).map(fci => ({

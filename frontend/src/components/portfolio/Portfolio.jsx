@@ -8,7 +8,7 @@ import {
 import { PieChart as RechartsPie, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import Calendar from '../calendario/Calendar';
 
-const BASE       = 'http://localhost:18000';
+const BASE       = 'https://arkad-tool.onrender.com';
 const API        = `${BASE}/api/v1/portfolio`;
 const API_CONFIG = `${BASE}/api/v1/portfolio/config`;
 const API_MACRO  = `${BASE}/api/v1/macro`;
