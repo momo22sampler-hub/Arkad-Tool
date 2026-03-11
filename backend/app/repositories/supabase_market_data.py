@@ -482,7 +482,7 @@ class SupabaseMarketData:
     # ------------------------------------------------------------------
 
     def get_instrument_data(self, ticker: str) -> Optional[Dict]:
-        """Busca un instrumento en todas las tablas y devuelve datos combinados con precio."""
+        """Busca un instrumento en todas las tablas y devuelve datos combinados con precio y métricas calculadas."""
         ticker = ticker.upper()
         tablas = [
             ("instrumentos_bonos", "Bono Soberano"),
@@ -495,17 +495,41 @@ class SupabaseMarketData:
                 resp = self.client.table(tabla).select("*").eq("ticker", ticker).execute()
                 if resp.data:
                     inst = resp.data[0]
-                    # Buscar precio
+
+                    # ── Precio ────────────────────────────────────────────────
                     resp_p = self.client.table("precios_hoy").select("*").eq("ticker", ticker).execute()
                     precio_row = resp_p.data[0] if resp_p.data else {}
-                    # Cashflows
-                    resp_cf = self.client.table("cashflows").select("*").eq("ticker", ticker).execute()
-                    cash_flows = [{
+                    price = float(precio_row.get("precio") or 0)
+                    currency = precio_row.get("moneda") or inst.get("moneda_emision") or "USD"
+
+                    # ── Cashflows ─────────────────────────────────────────────
+                    resp_cf = self.client.table("cashflows").select("*").eq("ticker", ticker).order("fecha_pago").execute()
+                    cash_flows_raw = [{
                         "fecha": self._format_fecha(cf.get("fecha_pago")),
                         "monto": float(cf.get("monto_pago") or 0),
                         "tipo": cf.get("tipo_pago", "Cupón"),
+                        "moneda": cf.get("moneda_pago", "USD"),
                     } for cf in resp_cf.data]
-                    # Histórico de precios para timing analysis
+
+                    # ── Calcular residual por fila ─────────────────────────────
+                    # Residual = suma de AMORTIZACION posteriores a esta fecha
+                    amort_rows = [
+                        (cf["fecha"], cf["monto"])
+                        for cf in cash_flows_raw
+                        if "AMORT" in cf["tipo"].upper()
+                    ]
+                    total_amort = sum(m for _, m in amort_rows)
+
+                    cash_flows = []
+                    acum_amort = 0.0
+                    for cf in cash_flows_raw:
+                        residual = None
+                        if "AMORT" in cf["tipo"].upper():
+                            acum_amort += cf["monto"]
+                            residual = round((total_amort - acum_amort) * 100, 4)
+                        cash_flows.append({**cf, "residual": residual})
+
+                    # ── Histórico de precios ───────────────────────────────────
                     resp_hist = self.client.table("precios_historicos")\
                         .select("precio,fecha_registro")\
                         .eq("ticker", ticker)\
@@ -516,22 +540,165 @@ class SupabaseMarketData:
                         {"price": float(h["precio"]), "date": str(h["fecha_registro"])}
                         for h in resp_hist.data if h.get("precio")
                     ]
+
+                    # ── FX rates para conversión ──────────────────────────────
+                    fx_rates = self._get_fx_rates()
+                    mep_rate = fx_rates.get("bolsa", 0)
+
+                    # ── Tipo de instrumento ───────────────────────────────────
+                    sub_clase = (inst.get("sub_clase_activo") or "").upper().strip()
+                    is_cer = sub_clase == "CER"
+                    is_dollar_linked = sub_clase == "DOLLAR_LINKED"
+                    is_letra = tipo_default == "Letra"
+
+                    # ── Precio para cálculos (convertido si es Hard Dollar en ARS) ──
+                    price_for_calc = price
+                    if is_dollar_linked and fx_rates.get("oficial", 0) > 0:
+                        if cash_flows and currency == "ARS" and price > 1000:
+                            price_for_calc = price / fx_rates["oficial"]
+                    elif not is_cer and cash_flows and currency == "ARS" and mep_rate > 0:
+                        cf_moneda = (cash_flows[0].get("moneda") or "USD").upper()
+                        if cf_moneda == "USD" and price > 1000:
+                            price_for_calc = price / mep_rate
+
+                    # ── Estructura de pago (derivada de cashflows) ────────────
+                    tiene_amort = any(
+                        "AMORT" in (cf.get("tipo_pago") or "").upper()
+                        for cf in resp_cf.data
+                    )
+                    estructura = "Amortizable" if tiene_amort else "Bullet"
+
+                    # ── Próximo pago (primer cashflow futuro) ─────────────────
+                    proximo_pago = None
+                    for cf in resp_cf.data:
+                        fecha_cf = self._parse_date_raw(cf.get("fecha_pago"))
+                        if fecha_cf and fecha_cf > today:
+                            proximo_pago = {
+                                "fecha": self._format_fecha(cf.get("fecha_pago")),
+                                "monto": float(cf.get("monto_pago") or 0),
+                                "tipo": cf.get("tipo_pago", ""),
+                                "moneda": cf.get("moneda_pago", "USD"),
+                            }
+                            break
+
+                    today = datetime.now()
+                    capital_residual = 0.0
+                    proximos_pagos_renta = []
+                    for cf in resp_cf.data:
+                        fecha_cf = self._parse_date_raw(cf.get("fecha_pago"))
+                        if fecha_cf and fecha_cf > today:
+                            tipo_cf = (cf.get("tipo_pago") or "").upper()
+                            monto_cf = float(cf.get("monto_pago") or 0)
+                            if "AMORT" in tipo_cf:
+                                capital_residual += monto_cf
+                            if "RENTA" in tipo_cf or "CUP" in tipo_cf:
+                                proximos_pagos_renta.append((fecha_cf, monto_cf))
+
+                    # ── Current Yield (suma RENTA próximos 12 meses / precio) ─
+                    current_yield = None
+                    if price_for_calc > 0 and proximos_pagos_renta:
+                        cutoff_12m = today + timedelta(days=365)
+                        renta_12m = sum(m for f, m in proximos_pagos_renta if f <= cutoff_12m)
+                        if renta_12m > 0:
+                            current_yield = round((renta_12m / price_for_calc) * 100, 2)
+
+                    # ── TIR ───────────────────────────────────────────────────
+                    engine = FinanceEngine()
+                    tir = 0.0
+                    if price_for_calc > 0 and cash_flows:
+                        try:
+                            tir = engine.calculate_tir(cash_flows, price_for_calc)
+                        except Exception:
+                            tir = 0.0
+
+                    # ── Duration ──────────────────────────────────────────────
+                    mac_dur = 0.0
+                    mod_dur = 0.0
+                    if tir != 0.0 and price_for_calc > 0 and cash_flows:
+                        try:
+                            dur = engine.calculate_duration(cash_flows, tir, price_for_calc)
+                            mac_dur = dur.get("macaulay_duration", 0.0)
+                            mod_dur = dur.get("modified_duration", 0.0)
+                        except Exception:
+                            pass
+
+                    # ── Métricas de valuación (clean, IC, VT, paridad) ────────
+                    parity = 0.0
+                    clean_price = 0.0
+                    accrued_interest = 0.0
+                    technical_value = 0.0
+                    if price_for_calc > 0 and cash_flows:
+                        try:
+                            metrics = engine.calculate_bond_metrics(
+                                cash_flows,
+                                price_for_calc,
+                                instrument_type=sub_clase if sub_clase else ("LETRA" if is_letra else "HARD_DOLLAR"),
+                                fx_rates=fx_rates
+                            )
+                            parity = metrics.get("parity") or 0.0
+                            if parity > 0 and parity <= 3.0:
+                                parity = parity * 100.0
+                            parity = round(parity, 2)
+
+                            was_converted = (price_for_calc != price) and (mep_rate > 0 or fx_rates.get("oficial", 0) > 0)
+                            if was_converted:
+                                fx_used = mep_rate if not is_dollar_linked else fx_rates.get("oficial", mep_rate)
+                                clean_price      = round((metrics.get("clean_price") or 0.0) * fx_used, 2)
+                                accrued_interest = round((metrics.get("accrued_interest") or 0.0) * fx_used, 2)
+                                technical_value  = round((metrics.get("technical_value") or 0.0) * fx_used, 2)
+                            else:
+                                clean_price      = round(metrics.get("clean_price") or 0.0, 2)
+                                accrued_interest = round(metrics.get("accrued_interest") or 0.0, 2)
+                                technical_value  = round(metrics.get("technical_value") or 0.0, 2)
+                        except Exception as e:
+                            print(f"[WARN] métricas fallaron para {ticker}: {e}")
+
                     return {
                         "ticker": ticker,
                         "nombre": inst.get("nombre"),
-                        "tipo": inst.get("sub_clase_activo") or tipo_default,
+                        "tipo": sub_clase or tipo_default,
                         "emisor": inst.get("emisor"),
                         "legislacion": inst.get("legislacion"),
                         "moneda_emision": inst.get("moneda_emision"),
+                        "fecha_emision": self._format_fecha(inst.get("fecha_emision")),
                         "fecha_vencimiento": self._format_fecha(inst.get("fecha_vencimiento")),
-                        "price": float(precio_row.get("precio") or 0),
-                        "currency": precio_row.get("moneda") or inst.get("moneda_emision") or "USD",
-                        "cash_flows": cash_flows,
+                        "estado": inst.get("estado"),
+                        "estructura": estructura,
+                        "proximo_pago": proximo_pago,
+                        # Precio
+                        "price": price,
+                        "dirty_price": price,
+                        "currency": currency,
+                        "source": precio_row.get("fuente") or "Supabase",
+                        "updated_at": str(precio_row.get("updated_at") or ""),
+                        # Calculados desde cashflows
+                        "capital_residual": round(capital_residual, 4),
+                        "current_yield": current_yield,
+                        "tir": tir,
+                        "modified_duration": mod_dur,
+                        "macaulay_duration": mac_dur,
+                        # Valuación
+                        "parity": parity,
+                        "clean_price": clean_price,
+                        "accrued_interest": accrued_interest,
+                        "technical_value": technical_value,
+                        # Cashflows y histórico
+                        "cash_flow": cash_flows,
                         "historical_prices": historical,
                     }
             except Exception as e:
                 print(f"Error buscando {ticker} en {tabla}: {e}")
         return None
+
+    def _parse_date_raw(self, value) -> Optional[datetime]:
+        """Parsea una fecha raw de Supabase a datetime."""
+        if not value:
+            return None
+        s = str(value)[:10]  # tomar solo YYYY-MM-DD
+        try:
+            return datetime.strptime(s, "%Y-%m-%d")
+        except Exception:
+            return None
 
     # ------------------------------------------------------------------
     # MARKET DATA CONSOLIDADO (para /api/v1/market-data)
