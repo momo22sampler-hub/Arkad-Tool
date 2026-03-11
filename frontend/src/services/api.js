@@ -3,7 +3,7 @@
  * Importar en componentes: import api from '../services/api'
  */
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:18000';
+const BASE_URL = 'https://arkad-tool.onrender.com';
 
 async function get(path) {
   const res = await fetch(`${BASE_URL}${path}`);
