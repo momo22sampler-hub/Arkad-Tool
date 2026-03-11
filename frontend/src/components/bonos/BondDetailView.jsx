@@ -233,10 +233,9 @@ export default function BondDetailView({ bond, onBack }) {
               />
               <DataRow label="Fecha Emisión" value={bond.fecha_emision} />
               <DataRow label="Fecha Vencimiento" value={bond.fecha_vencimiento} />
-              <DataRow label="Valor Nominal" value={`${bond.moneda} ${bond.vn_vr}`} sub="por lámina" />
-              <DataRow label="Capital Residual" value={`${(bond.residual_capital * 100).toFixed(2)}%`} />
-              <DataRow label="Mercado Principal" value={bond.mercado} />
-              <DataRow label="Lámina Mínima" value={bond.compra_minima} />
+              {bond.capital_residual > 0 && (
+                <DataRow label="Capital Residual" value={`${(bond.capital_residual * 100).toFixed(2)}%`} />
+              )}
             </div>
 
             {bond.prospecto && (
@@ -269,7 +268,7 @@ export default function BondDetailView({ bond, onBack }) {
             )}
           </section>
 
-          {/* SECCIÓN B: CUPÓN */}
+            {/* SECCIÓN B: PRÓXIMO PAGO */}
           <section>
             <h3 style={{
               fontSize: '12px',
@@ -284,17 +283,6 @@ export default function BondDetailView({ bond, onBack }) {
             }}>
               <Calendar size={14} /> Sección B: Cupón y Pagos
             </h3>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '0 48px'
-            }}>
-              <DataRow label="Tasa de Cupón" value={`${(bond.tasa_cupon * 100).toFixed(2)}%`} sub={bond.tipo_tasa} />
-              <DataRow label="Periodicidad" value={bond.periodicidad} />
-              <DataRow label="Base de Cálculo" value={bond.base_calculo} sub="Convención de días" />
-              <DataRow label="Días Corridos" value={bond.days_since_last_coupon} sub="Desde último pago" />
-            </div>
-
             <div style={{
               marginTop: '16px',
               backgroundColor: 'rgba(59, 130, 246, 0.05)',
@@ -311,24 +299,25 @@ export default function BondDetailView({ bond, onBack }) {
               }}>
                 Próximo Pago Estimado
               </div>
-              {bond.cash_flow?.[0] && (
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <span style={{ color: '#cbd5e1', fontWeight: 'bold' }}>
-                    {bond.cash_flow[0].fecha}
-                  </span>
-                  <span style={{
-                    fontSize: '18px',
-                    fontWeight: 'black',
-                    color: '#4ade80'
-                  }}>
-                    u$d {bond.cash_flow[0].monto}
-                  </span>
-                </div>
-              )}
+              {(() => {
+                const hoy = new Date();
+                const pago = bond.proximo_pago || (bond.cash_flow || []).find(cf => {
+                  if (!cf.fecha) return false;
+                  const [d, m, y] = cf.fecha.split('/');
+                  return new Date(`${y}-${m}-${d}`) > hoy;
+                }) || null;
+                if (!pago) return <span style={{ color: '#64748b', fontSize: '13px' }}>Sin pagos futuros</span>;
+                const monto = pago.monto.toFixed(4);
+                const simbolo = pago.moneda === 'USD' ? 'u$d' : '$';
+                return (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: '#cbd5e1', fontWeight: 'bold' }}>{pago.fecha}</span>
+                    <span style={{ fontSize: '18px', fontWeight: 'black', color: '#4ade80' }}>
+                      {simbolo} {monto}
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
           </section>
 
@@ -375,43 +364,6 @@ export default function BondDetailView({ bond, onBack }) {
               />
             </div>
 
-            <div style={{
-              marginTop: '16px',
-              backgroundColor: '#0f172a',
-              border: '1px solid #1e293b',
-              padding: '16px',
-              borderRadius: '8px'
-            }}>
-              <div style={{
-                fontSize: '10px',
-                color: '#64748b',
-                fontWeight: 'black',
-                textTransform: 'uppercase',
-                marginBottom: '12px'
-              }}>
-                Fórmulas Clave
-              </div>
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
-                fontSize: '12px',
-                fontFamily: 'monospace'
-              }}>
-                <div style={{ color: '#94a3b8' }}>
-                  <span style={{ color: '#4ade80' }}>IC</span> = Cupón × VR × (Días Corridos / Base)
-                </div>
-                <div style={{ color: '#94a3b8' }}>
-                  <span style={{ color: '#60a5fa' }}>Clean</span> = Dirty - IC
-                </div>
-                <div style={{ color: '#94a3b8' }}>
-                  <span style={{ color: '#a78bfa' }}>VT</span> = VR × Residual + IC
-                </div>
-                <div style={{ color: '#94a3b8' }}>
-                  <span style={{ color: '#fbbf24' }}>Paridad</span> = (Dirty / VR) × 100
-                </div>
-              </div>
-            </div>
           </section>
 
           {/* SECCIÓN F: FLUJO DE FONDOS */}
@@ -429,6 +381,9 @@ export default function BondDetailView({ bond, onBack }) {
             }}>
               <TrendingUp size={14} /> Sección F: Flujo de Fondos (Proyectado)
             </h3>
+            <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '12px' }}>
+              Montos expresados por cada VN $100. Solo pagos futuros.
+            </div>
             <div style={{
               backgroundColor: '#0f172a',
               border: '1px solid #1e293b',
@@ -450,7 +405,11 @@ export default function BondDetailView({ bond, onBack }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {bond.cash_flow?.map((cf, i) => (
+                  {bond.cash_flow?.filter(cf => {
+                    if (!cf.fecha) return false;
+                    const [d, m, y] = cf.fecha.split('/');
+                    return new Date(`${y}-${m}-${d}`) > new Date();
+                  }).map((cf, i) => (
                     <tr
                       key={i}
                       style={{
@@ -463,10 +422,10 @@ export default function BondDetailView({ bond, onBack }) {
                       <td style={{ padding: '16px', fontWeight: 'bold', color: '#f1f5f9' }}>{cf.fecha}</td>
                       <td style={{ padding: '16px', color: '#64748b' }}>{cf.tipo}</td>
                       <td style={{ padding: '16px', textAlign: 'right', fontWeight: 'black', color: '#4ade80' }}>
-                        u$d {cf.monto}
+                        {cf.moneda === 'USD' ? 'u$d' : '$'} {cf.monto.toFixed(4)}
                       </td>
                       <td style={{ padding: '16px', textAlign: 'right', color: '#94a3b8' }}>
-                        {cf.residual}%
+                        {cf.residual != null ? `u$d ${cf.residual}` : <span style={{color:'#475569'}}>—</span>}
                       </td>
                     </tr>
                   ))}
@@ -484,6 +443,7 @@ export default function BondDetailView({ bond, onBack }) {
             currentPrice={bond.dirty_price}
             modifiedDuration={bond.modified_duration}
             currentTIR={bond.tir}
+            currency={bond.currency}
           />
 
           {/* SECCIÓN D: YIELD PROYECTADO */}
@@ -551,7 +511,7 @@ export default function BondDetailView({ bond, onBack }) {
                   fontWeight: 'black',
                   color: 'white'
                 }}>
-                  {((bond.tasa_cupon * bond.vn_vr * bond.residual_capital / bond.dirty_price) * 100).toFixed(2)}%
+                  {bond.current_yield != null ? `${bond.current_yield}%` : '---'}
                 </div>
                 <div style={{
                   fontSize: '9px',

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
-export default function SensitivitySimulator({ currentPrice, modifiedDuration, currentTIR }) {
+export default function SensitivitySimulator({ currentPrice, modifiedDuration, currentTIR, currency }) {
   const [tirAdjustment, setTirAdjustment] = useState(0);
+  const currencySymbol = currency === 'ARS' ? '$' : 'u$d';
 
   const calculateNewPrice = (tirChange) => {
     const priceChange = -modifiedDuration * (tirChange / 100) * currentPrice;
@@ -124,7 +125,7 @@ export default function SensitivitySimulator({ currentPrice, modifiedDuration, c
             Precio Actual
           </div>
           <div style={{ fontSize: '24px', fontWeight: 'black', color: '#cbd5e1' }}>
-            u$d {currentPrice.toFixed(2)}
+            {currencySymbol} {currentPrice.toFixed(2)}
           </div>
         </div>
       </div>
@@ -168,7 +169,7 @@ export default function SensitivitySimulator({ currentPrice, modifiedDuration, c
               Nuevo Precio
             </div>
             <div style={{ fontSize: '32px', fontWeight: 'black', color: 'white' }}>
-              u$d {newPrice.toFixed(2)}
+              {currencySymbol} {newPrice.toFixed(2)}
             </div>
           </div>
 
