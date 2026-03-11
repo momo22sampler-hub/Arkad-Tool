@@ -2,7 +2,7 @@
  * api.js — Servicio central para todas las llamadas al backend
  * Importar en componentes: import api from '../services/api'
  */
-
+// v2 - production build
 const BASE_URL = 'https://arkad-tool.onrender.com';
 
 async function get(path) {
@@ -29,8 +29,6 @@ const api = {
     params.set('limit', limit);
     return get(`/api/v1/macros?${params}`);
   },
-
-
 
   // Health
   health:           () => get('/api/v1/health'),
