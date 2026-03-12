@@ -600,7 +600,7 @@ class SupabaseMarketData:
                         cutoff_12m = today + timedelta(days=365)
                         renta_12m = sum(m for f, m in proximos_pagos_renta if f <= cutoff_12m)
                         if renta_12m > 0:
-                            current_yield = round((renta_12m / price_for_calc) * 100, 2)
+                            current_yield = round((renta_12m * 100 / price_for_calc) * 100, 2)
 
                     # ── TIR ───────────────────────────────────────────────────
                     engine = FinanceEngine()
