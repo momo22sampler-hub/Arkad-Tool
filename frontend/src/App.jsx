@@ -91,30 +91,45 @@ function App() {
       });
   }, []);
 
+  // Filtra instrumentos con más de 1 campo faltante.
+  // Campos evaluados: price, clean_price, parity, tir, volume, variation
+  const hasEnoughData = (item) => {
+    const campos = [
+      item.price > 0,
+      item.clean_price > 0,
+      item.parity > 0,
+      item.tir > 0,
+      item.volume > 0,
+      item.variation != null,
+    ];
+    const faltantes = campos.filter(ok => !ok).length;
+    return faltantes <= 1;
+  };
+
   const filteredBonos = bonos.filter(item =>
-    searchTerm === '' ||
-    item.ticker.toLowerCase().includes(searchTerm.toLowerCase())
+    hasEnoughData(item) &&
+    (searchTerm === '' || item.ticker.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const filteredLetras = letras.filter(item =>
-    searchTerm === '' ||
-    item.ticker.toLowerCase().includes(searchTerm.toLowerCase())
+    hasEnoughData(item) &&
+    (searchTerm === '' || item.ticker.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const filteredBopreal = bopreal.filter(item =>
-    searchTerm === '' ||
-    item.ticker.toLowerCase().includes(searchTerm.toLowerCase())
+    hasEnoughData(item) &&
+    (searchTerm === '' || item.ticker.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const filteredONs = ons.filter(item =>
-    searchTerm === '' ||
-    item.ticker.toLowerCase().includes(searchTerm.toLowerCase())
+    hasEnoughData(item) &&
+    (searchTerm === '' || item.ticker.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const bondCount = apiMetadata?.displayed_bonos || apiMetadata?.total_bonos || 0;
-  const letrasCount = apiMetadata?.total_letras || 0;
-  const boprealCount = apiMetadata?.total_bopreal || 0;
-  const onCount = apiMetadata?.displayed_ons || apiMetadata?.total_ons || 0;
+  const bondCount = filteredBonos.length;
+  const letrasCount = filteredLetras.length;
+  const boprealCount = filteredBopreal.length;
+  const onCount = filteredONs.length;
 
   const currentBonosData = (() => {
     const base = activeTab === 'bonos' ? filteredBonos : activeTab === 'letras' ? filteredLetras : activeTab === 'bopreal' ? filteredBopreal : [];
