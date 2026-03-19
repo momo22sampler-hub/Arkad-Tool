@@ -196,7 +196,7 @@ export default function BondDetailView({ bond, onBack }) {
                       <td style={{ padding: '16px', fontWeight: 'bold', color: '#f1f5f9' }}>{cf.fecha}</td>
                       <td style={{ padding: '16px', color: '#64748b' }}>{cf.tipo}</td>
                       <td style={{ padding: '16px', textAlign: 'right', fontWeight: 'black', color: '#4ade80' }}>
-                        {cf.moneda === 'USD' ? 'u$d' : '$'} {(cf.monto * 100).toFixed(4)}
+                        {cf.moneda === 'USD' ? 'u$d' : '$'} {cf.monto.toFixed(4)}
                       </td>
                       <td style={{ padding: '16px', textAlign: 'right', color: '#94a3b8' }}>
                         {cf.residual != null ? `u$d ${cf.residual}` : <span style={{ color: '#475569' }}>—</span>}

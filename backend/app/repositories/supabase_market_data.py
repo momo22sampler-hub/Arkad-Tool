@@ -25,6 +25,22 @@ class SupabaseMarketData:
         self.client: Client = create_client(supabase_url, supabase_key)
 
     # ------------------------------------------------------------------
+    # HELPERS
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _normalize_monto(monto_pago: float) -> float:
+        """
+        Normaliza monto_pago a escala VN=100.
+        La BD puede tener cashflows en VN=1 (ej: 0.0175) o ya en VN=100 (ej: 1.75).
+        Regla: si monto < 5 asumimos VN=1 y multiplicamos x100.
+        Valores >= 5 ya están en escala VN=100 o nominal, se usan tal cual.
+        """
+        if monto_pago < 5.0:
+            return round(monto_pago * 100, 6)
+        return monto_pago
+
+    # ------------------------------------------------------------------
     # BONOS Y ONs
     # ------------------------------------------------------------------
 
@@ -79,7 +95,7 @@ class SupabaseMarketData:
                     cashflows[t] = []
                 cashflows[t].append({
                     "fecha": self._format_fecha(cf.get("fecha_pago")),
-                    "monto": float(cf.get("monto_pago") or 0),
+                    "monto": self._normalize_monto(float(cf.get("monto_pago") or 0)),
                     "tipo": cf.get("tipo_pago", "Cupón"),
                     "moneda": cf.get("moneda_pago", "USD")
                 })
@@ -506,7 +522,7 @@ class SupabaseMarketData:
                     resp_cf = self.client.table("cashflows").select("*").eq("ticker", ticker).order("fecha_pago").execute()
                     cash_flows_raw = [{
                         "fecha": self._format_fecha(cf.get("fecha_pago")),
-                        "monto": float(cf.get("monto_pago") or 0),
+                        "monto": self._normalize_monto(float(cf.get("monto_pago") or 0)),
                         "tipo": cf.get("tipo_pago", "Cupón"),
                         "moneda": cf.get("moneda_pago", "USD"),
                     } for cf in resp_cf.data]
@@ -575,7 +591,7 @@ class SupabaseMarketData:
                         if fecha_cf and fecha_cf > today:
                             proximo_pago = {
                                 "fecha": self._format_fecha(cf.get("fecha_pago")),
-                                "monto": float(cf.get("monto_pago") or 0),
+                                "monto": self._normalize_monto(float(cf.get("monto_pago") or 0)),
                                 "tipo": cf.get("tipo_pago", ""),
                                 "moneda": cf.get("moneda_pago", "USD"),
                             }

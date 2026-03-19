@@ -126,14 +126,6 @@ async def get_macros_historico(indicador: Optional[str] = None, limit: int = 365
     try: return market_data.get_macros_historico(indicador=indicador, limit=limit)
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
-"""
-PATCH para main.py — agrega dos endpoints:
-  - /api/v1/macro      (ya existía, sin cambios)
-  - /api/v1/billeteras (nuevo)
-
-Pegar antes del bloque if __name__ == "__main__":
-"""
-
 from collections import defaultdict
 
 
@@ -278,10 +270,6 @@ async def get_macro_dashboard():
 
 @app.get("/api/v1/billeteras")
 async def get_billeteras():
-    """
-    Lee billeteras_hoy y devuelve la lista ordenada por TNA desc.
-    Los valores de tna/tea vienen como decimales (0.28) y se convierten a % (28.0).
-    """
     try:
         resp = market_data.client.table("billeteras_hoy") \
             .select("fondo,tna,tea,tope,fecha,condiciones,condiciones_corto,variacion_diaria,updated_at") \
@@ -297,8 +285,8 @@ async def get_billeteras():
 
             result.append({
                 "fondo":             row.get("fondo"),
-                "tna":               round(tna_raw * 100, 3),   # 0.28 → 28.0
-                "tea":               round(tea_raw * 100, 3),   # 0.3497 → 34.97
+                "tna":               round(tna_raw * 100, 3),
+                "tea":               round(tea_raw * 100, 3),
                 "tope":              float(tope) if tope else None,
                 "fecha":             str(row.get("fecha") or ""),
                 "condiciones":       row.get("condiciones"),
@@ -311,21 +299,7 @@ async def get_billeteras():
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
-    """
-PATCH para main.py — endpoints de Portfolio Pro
-================================================
-Pegar antes del bloque if __name__ == "__main__":
 
-Endpoints:
-  GET    /api/v1/portfolio                  — lista todas las operaciones
-  POST   /api/v1/portfolio                  — crea una operación nueva
-  PATCH  /api/v1/portfolio/{id}/vender      — cierra una posición como VENDIDA
-  PATCH  /api/v1/portfolio/{id}/vencida     — marca como VENCIDA (automático)
-  DELETE /api/v1/portfolio/{id}             — elimina una operación
-  GET    /api/v1/portfolio/resolver-tc      — devuelve TC oficial para una fecha
-  GET    /api/v1/portfolio/resolver-vcp     — devuelve VCP de un FCI para una fecha
-"""
 
 from datetime import datetime, date, timedelta
 from typing import Optional
@@ -335,28 +309,25 @@ from pydantic import BaseModel
 # ── Modelos de entrada ────────────────────────────────────────────────────────
 
 class OperacionIn(BaseModel):
-    type:               str                   # BOND | ON | CAUCION | LETRA | BOPREAL | FCI
+    type:               str
     ticker:             Optional[str] = None
     nombre:             Optional[str] = None
     status:             str = "ACTIVA"
-    objetivo:           Optional[str] = None  # CASH | RENTA | HEDGE_INF | HEDGE_USD
-    date_compra:        str                   # YYYY-MM-DD
+    objetivo:           Optional[str] = None
+    date_compra:        str
     qty:                Optional[float] = None
     price_compra:       Optional[float] = None
     amount_ars:         Optional[float] = None
     price_compra_usd:   Optional[float] = None
-    # Cauciones
     tna:                Optional[float] = None
     term_dias:          Optional[int]   = None
-    # FCIs
-    operacion_fci:      Optional[str]   = None  # SUSCRIPCION | RESCATE
-    # Opcionales que el usuario puede ingresar
+    operacion_fci:      Optional[str]   = None
     lugar_compra:       Optional[str]   = None
     notas:              Optional[str]   = None
 
 
 class VentaIn(BaseModel):
-    date_venta:         str             # YYYY-MM-DD
+    date_venta:         str
     price_venta:        float
     amount_venta_ars:   Optional[float] = None
     price_venta_usd:    Optional[float] = None
@@ -366,7 +337,7 @@ class VentaIn(BaseModel):
 
 def _resolver_tc_para_fecha(client, fecha_str: str) -> Optional[float]:
     """
-    Busca el TC oficial mayorista más cercano a la fecha dada en tc_historico.
+    Busca el TC oficial (venta) para una fecha dada en tc_historico.
     Intenta el día exacto, luego busca hacia atrás hasta 7 días.
     """
     try:
@@ -375,7 +346,7 @@ def _resolver_tc_para_fecha(client, fecha_str: str) -> Optional[float]:
             dia = (fecha - timedelta(days=delta)).isoformat()
             resp = client.table("tc_historico") \
                 .select("venta") \
-                .eq("casa", "mayorista") \
+                .eq("casa", "oficial") \
                 .eq("fecha", dia) \
                 .limit(1) \
                 .execute()
@@ -409,38 +380,26 @@ def _resolver_vcp_para_fecha(client, nombre_fondo: str, fecha_str: str) -> Optio
 
 
 def _calcular_metricas(op: dict, client) -> dict:
-    """
-    Calcula y devuelve las métricas derivadas para una operación:
-    - date_vencimiento para cauciones
-    - tc_compra / amount_usd si no vienen del frontend
-    - cuotaparte_entrada para FCIs
-    - rendimiento_esperado básico
-    """
     extras = {}
 
-    # Caución: calcular fecha de vencimiento
     if op.get("type") == "CAUCION" and op.get("date_compra") and op.get("term_dias"):
         try:
             inicio = date.fromisoformat(op["date_compra"])
             extras["date_vencimiento"] = (inicio + timedelta(days=int(op["term_dias"]))).isoformat()
-            # Rendimiento esperado = interés simple al vencimiento
             tna = float(op.get("tna") or 0)
             plazo = int(op["term_dias"])
             extras["rendimiento_esperado"] = round(tna * plazo / 365, 4)
         except Exception:
             pass
 
-    # TC de compra (si no lo pasó el frontend)
     if not op.get("tc_compra") and op.get("date_compra"):
         tc = _resolver_tc_para_fecha(client, op["date_compra"])
         if tc:
             extras["tc_compra"] = tc
-            # amount_usd
             ars = float(op.get("amount_ars") or 0)
             if ars > 0:
                 extras["amount_usd"] = round(ars / tc, 2)
 
-    # VCP de entrada para FCIs
     if op.get("type") == "FCI" and op.get("nombre") and op.get("date_compra"):
         if not op.get("cuotaparte_entrada"):
             vcp = _resolver_vcp_para_fecha(client, op["nombre"], op["date_compra"])
@@ -450,11 +409,10 @@ def _calcular_metricas(op: dict, client) -> dict:
     return extras
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
+# ── Endpoints portfolio operaciones ───────────────────────────────────────────
 
 @app.get("/api/v1/portfolio")
 async def get_portfolio():
-    """Lista todas las operaciones del portfolio, ordenadas por fecha desc."""
     try:
         resp = market_data.client.table("portfolio_operaciones") \
             .select("*") \
@@ -467,28 +425,16 @@ async def get_portfolio():
 
 @app.post("/api/v1/portfolio", status_code=201)
 async def crear_operacion(op: OperacionIn):
-    """
-    Registra una nueva operación.
-    Resuelve automáticamente TC y VCP si no vienen en el payload.
-    """
     try:
         payload = op.model_dump(exclude_none=True)
-
-        # Calcular y agregar métricas automáticas
         extras = _calcular_metricas(payload, market_data.client)
         payload.update(extras)
-
         payload["created_at"] = datetime.now().isoformat()
         payload["updated_at"] = datetime.now().isoformat()
-
-        resp = market_data.client.table("portfolio_operaciones") \
-            .insert(payload) \
-            .execute()
-
+        resp = market_data.client.table("portfolio_operaciones").insert(payload).execute()
         if resp.data:
             return resp.data[0]
         raise HTTPException(status_code=500, detail="No se pudo insertar la operación")
-
     except HTTPException:
         raise
     except Exception as e:
@@ -497,27 +443,13 @@ async def crear_operacion(op: OperacionIn):
 
 @app.patch("/api/v1/portfolio/{operacion_id}/vender")
 async def cerrar_posicion(operacion_id: str, venta: VentaIn):
-    """
-    Marca una posición como VENDIDA y guarda los datos de venta.
-    Calcula rendimiento_realizado automáticamente.
-    """
     try:
-        # Leer la operación original
         resp = market_data.client.table("portfolio_operaciones") \
-            .select("*") \
-            .eq("id", operacion_id) \
-            .limit(1) \
-            .execute()
-
+            .select("*").eq("id", operacion_id).limit(1).execute()
         if not resp.data:
             raise HTTPException(status_code=404, detail="Operación no encontrada")
-
         original = resp.data[0]
-
-        # TC al momento de venta
         tc_venta = _resolver_tc_para_fecha(market_data.client, venta.date_venta)
-
-        # Calcular rendimiento realizado
         rendimiento_realizado = None
         price_compra = float(original.get("price_compra") or 0)
         if price_compra > 0 and venta.price_venta > 0:
@@ -525,27 +457,17 @@ async def cerrar_posicion(operacion_id: str, venta: VentaIn):
             rendimiento_realizado = round(
                 ((venta.price_venta - price_compra + carry) / price_compra) * 100, 4
             )
-
         patch = {
-            "status":               "VENDIDA",
-            "date_venta":           venta.date_venta,
-            "price_venta":          venta.price_venta,
-            "amount_venta_ars":     venta.amount_venta_ars,
-            "price_venta_usd":      venta.price_venta_usd,
-            "tc_venta":             tc_venta,
+            "status": "VENDIDA", "date_venta": venta.date_venta,
+            "price_venta": venta.price_venta, "amount_venta_ars": venta.amount_venta_ars,
+            "price_venta_usd": venta.price_venta_usd, "tc_venta": tc_venta,
             "rendimiento_realizado": rendimiento_realizado,
-            "updated_at":           datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
         }
-        # Limpiar nulos para no pisar datos existentes
         patch = {k: v for k, v in patch.items() if v is not None}
-
         resp_update = market_data.client.table("portfolio_operaciones") \
-            .update(patch) \
-            .eq("id", operacion_id) \
-            .execute()
-
+            .update(patch).eq("id", operacion_id).execute()
         return resp_update.data[0] if resp_update.data else {"ok": True}
-
     except HTTPException:
         raise
     except Exception as e:
@@ -554,12 +476,10 @@ async def cerrar_posicion(operacion_id: str, venta: VentaIn):
 
 @app.patch("/api/v1/portfolio/{operacion_id}/vencida")
 async def marcar_vencida(operacion_id: str):
-    """Marca una posición como VENCIDA (lo puede llamar el frontend al detectar fecha pasada)."""
     try:
         resp = market_data.client.table("portfolio_operaciones") \
             .update({"status": "VENCIDA", "updated_at": datetime.now().isoformat()}) \
-            .eq("id", operacion_id) \
-            .execute()
+            .eq("id", operacion_id).execute()
         return resp.data[0] if resp.data else {"ok": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -567,12 +487,8 @@ async def marcar_vencida(operacion_id: str):
 
 @app.delete("/api/v1/portfolio/{operacion_id}", status_code=204)
 async def eliminar_operacion(operacion_id: str):
-    """Elimina una operación del portfolio."""
     try:
-        market_data.client.table("portfolio_operaciones") \
-            .delete() \
-            .eq("id", operacion_id) \
-            .execute()
+        market_data.client.table("portfolio_operaciones").delete().eq("id", operacion_id).execute()
         return None
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -580,38 +496,177 @@ async def eliminar_operacion(operacion_id: str):
 
 @app.get("/api/v1/portfolio/resolver-tc")
 async def resolver_tc(fecha: str):
-    """
-    Devuelve el TC oficial mayorista para una fecha dada.
-    Útil para que el frontend muestre el TC antes de guardar.
-    Query param: ?fecha=YYYY-MM-DD
-    """
     tc = _resolver_tc_para_fecha(market_data.client, fecha)
     if tc is None:
         raise HTTPException(status_code=404, detail=f"No se encontró TC para {fecha}")
-    return {"fecha": fecha, "tc_mayorista": tc}
+    return {"fecha": fecha, "tc_oficial": tc}
 
 
 @app.get("/api/v1/portfolio/resolver-vcp")
 async def resolver_vcp(fondo: str, fecha: str):
-    """
-    Devuelve el VCP de un FCI para una fecha dada.
-    Query params: ?fondo=Galileo Money Market&fecha=YYYY-MM-DD
-    """
     vcp = _resolver_vcp_para_fecha(market_data.client, fondo, fecha)
     if vcp is None:
         raise HTTPException(status_code=404, detail=f"No se encontró VCP para {fondo} en {fecha}")
     return {"fondo": fondo, "fecha": fecha, "vcp": vcp}
+
 
 @app.get("/api/v1/portfolio/config")
 async def get_config():
     resp = market_data.client.table("portfolio_config").select("*").eq("id", "singleton").execute()
     return resp.data[0] if resp.data else {"liquidez_ars": 0}
 
+
 @app.patch("/api/v1/portfolio/config/liquidez")
 async def update_liquidez(body: dict):
-    delta = float(body.get("delta", 0))   # positivo = suma, negativo = resta
+    delta = float(body.get("delta", 0))
     resp  = market_data.client.rpc("ajustar_liquidez", {"delta": delta}).execute()
     return resp.data
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PORTFOLIO FCI — CRUD endpoints
+# ══════════════════════════════════════════════════════════════════════════════
+
+class PortfolioFCIIn(BaseModel):
+    fondo:              str
+    tipo:               Optional[str]   = None
+    estado:             str             = "ACTIVO"
+    fecha_entrada:      str
+    fecha_salida:       Optional[str]   = None
+    monto_ars:          float
+    tc_oficial_entrada: Optional[float] = None
+    tc_mep_entrada:     Optional[float] = None
+    cuotas:             Optional[float] = None
+    vcp_entrada:        Optional[float] = None
+    notas:              Optional[str]   = None
+
+
+class PortfolioFCICierreIn(BaseModel):
+    fecha_salida:        str
+    monto_ars_salida:    float
+    tc_oficial_salida:   Optional[float] = None
+    tc_mep_salida:       Optional[float] = None
+    vcp_salida:          Optional[float] = None
+    inflacion_acumulada: Optional[float] = None
+
+
+def _resolver_mep_para_fecha(client, fecha_str: str) -> Optional[float]:
+    try:
+        fecha = date.fromisoformat(fecha_str)
+        for delta in range(8):
+            dia = (fecha - timedelta(days=delta)).isoformat()
+            resp = client.table("tc_historico") \
+                .select("venta").eq("casa", "bolsa").eq("fecha", dia).limit(1).execute()
+            if resp.data and resp.data[0].get("venta"):
+                return float(resp.data[0]["venta"])
+    except Exception as e:
+        print(f"Error resolviendo MEP para {fecha_str}: {e}")
+    return None
+
+
+@app.get("/api/v1/portfolio-fci")
+async def get_portfolio_fci():
+    try:
+        resp = market_data.client.table("portfolio_fci") \
+            .select("*").order("fecha_entrada", desc=True).execute()
+        return resp.data or []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/portfolio-fci", status_code=201)
+async def crear_posicion_fci(pos: PortfolioFCIIn):
+    try:
+        payload = pos.model_dump(exclude_none=True)
+
+        if not payload.get("tc_oficial_entrada"):
+            tc = _resolver_tc_para_fecha(market_data.client, payload["fecha_entrada"])
+            if tc:
+                payload["tc_oficial_entrada"] = tc
+
+        if not payload.get("tc_mep_entrada"):
+            tc_mep = _resolver_mep_para_fecha(market_data.client, payload["fecha_entrada"])
+            if tc_mep:
+                payload["tc_mep_entrada"] = tc_mep
+
+        if not payload.get("vcp_entrada") and payload.get("fondo"):
+            vcp = _resolver_vcp_para_fecha(market_data.client, payload["fondo"], payload["fecha_entrada"])
+            if vcp:
+                payload["vcp_entrada"] = vcp
+                if not payload.get("cuotas") and payload.get("monto_ars") and vcp > 0:
+                    payload["cuotas"] = round(payload["monto_ars"] / vcp, 6)
+
+        payload["created_at"] = datetime.now().isoformat()
+        payload["updated_at"] = datetime.now().isoformat()
+
+        resp = market_data.client.table("portfolio_fci").insert(payload).execute()
+        if resp.data:
+            return resp.data[0]
+        raise HTTPException(status_code=500, detail="No se pudo insertar la posición")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.patch("/api/v1/portfolio-fci/{posicion_id}/cerrar")
+async def cerrar_posicion_fci(posicion_id: str, cierre: PortfolioFCICierreIn):
+    try:
+        patch = cierre.model_dump(exclude_none=True)
+        patch["estado"] = "CERRADO"
+
+        if not patch.get("tc_oficial_salida"):
+            tc = _resolver_tc_para_fecha(market_data.client, patch["fecha_salida"])
+            if tc:
+                patch["tc_oficial_salida"] = tc
+
+        if not patch.get("tc_mep_salida"):
+            tc_mep = _resolver_mep_para_fecha(market_data.client, patch["fecha_salida"])
+            if tc_mep:
+                patch["tc_mep_salida"] = tc_mep
+
+        patch["updated_at"] = datetime.now().isoformat()
+
+        resp = market_data.client.table("portfolio_fci") \
+            .update(patch).eq("id", posicion_id).execute()
+        return resp.data[0] if resp.data else {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/v1/portfolio-fci/{posicion_id}", status_code=204)
+async def eliminar_posicion_fci(posicion_id: str):
+    try:
+        market_data.client.table("portfolio_fci").delete().eq("id", posicion_id).execute()
+        return None
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/portfolio-fci/inflacion-historial")
+async def get_inflacion_historial():
+    try:
+        resp = market_data.client.table("macros") \
+            .select("fecha, valor") \
+            .eq("indicador", "inflacion") \
+            .order("fecha", desc=False) \
+            .execute()
+
+        result = []
+        for row in (resp.data or []):
+            v = row.get("valor")
+            f = row.get("fecha")
+            if v is not None and f:
+                val = float(v)
+                if val < 2:
+                    val = round(val * 100, 4)
+                result.append({"fecha": str(f), "valor": val})
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=18000)

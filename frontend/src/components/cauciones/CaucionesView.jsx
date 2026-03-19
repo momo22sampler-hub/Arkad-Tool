@@ -201,6 +201,7 @@ export default function CaucionesView({ cauciones, loading }) {
   const [montoInversion, setMontoInversion] = useState(100000);
   const [plazoSim, setPlazoSim] = useState(1);
   const [tnaSim, setTnaSim] = useState('');
+  const [tnaError, setTnaError] = useState(false);
 
   // Initial values based on market
   React.useEffect(() => {
@@ -217,15 +218,34 @@ export default function CaucionesView({ cauciones, loading }) {
     }
   }, [caucionesARS]);
 
+  // Al cambiar el plazo → autocompletar TNA del mercado y limpiar error
   const handlePlazoChange = (e) => {
     const p = Number(e.target.value);
     setPlazoSim(p);
     const mkt = caucionesARS.find(c => c.plazo === p);
-    if (mkt) setTnaSim(mkt.tna);
+    if (mkt) {
+      setTnaSim(mkt.tna);
+      setTnaError(false);
+    }
+  };
+
+  // Al cambiar la TNA manualmente → validar que coincida con el mercado para ese plazo
+  const handleTnaChange = (e) => {
+    const val = e.target.value;
+    setTnaSim(val);
+    const mkt = caucionesARS.find(c => c.plazo === plazoSim);
+    if (mkt && val !== '' && Number(val) !== mkt.tna) {
+      setTnaError(true);
+    } else {
+      setTnaError(false);
+    }
   };
 
   const currentTNA = Number(tnaSim) || 0;
-  const rendimientoSimulado = (montoInversion * (currentTNA / 100) * (plazoSim / 365));
+  const mktCaucion = caucionesARS.find(c => c.plazo === plazoSim);
+  const rendimientoSimulado = !tnaError
+    ? (montoInversion * (currentTNA / 100) * (plazoSim / 365))
+    : null;
 
   return (
     <div style={{ padding: '48px' }}>
@@ -500,68 +520,128 @@ export default function CaucionesView({ cauciones, loading }) {
                   fontWeight: 'black',
                   color: '#f1f5f9',
                   outline: 'none',
-                  appearance: 'none'
+                  appearance: 'none',
+                  cursor: 'pointer'
                 }}
               >
-                {[1, 7, 14, 30].map(d => (
-                  <option key={d} value={d}>{d} {d === 1 ? 'Día' : 'Días'}</option>
-                ))}
+                {caucionesARS
+                  .slice()
+                  .sort((a, b) => a.plazo - b.plazo)
+                  .map(c => (
+                    <option key={c.plazo} value={c.plazo}>
+                      {c.plazo} {c.plazo === 1 ? 'Día' : 'Días'} — TNA {c.tna}%
+                    </option>
+                  ))
+                }
               </select>
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#cbd5e1', marginBottom: '8px' }}>
-                Tasa (TNA %) Editable
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: tnaError ? '#f87171' : '#cbd5e1', marginBottom: '8px' }}>
+                Tasa (TNA %) {tnaError ? '— ⚠ No coincide con el mercado' : `— Mercado: ${mktCaucion?.tna ?? '—'}%`}
               </label>
               <input
                 type="number"
                 value={tnaSim}
-                onChange={(e) => setTnaSim(e.target.value)}
+                onChange={handleTnaChange}
                 step="0.1"
                 min="0"
                 style={{
                   width: '100%',
-                  backgroundColor: '#0f172a',
-                  border: '1px solid #1e293b',
+                  backgroundColor: tnaError ? 'rgba(248, 113, 113, 0.05)' : '#0f172a',
+                  border: tnaError ? '2px solid #f87171' : '1px solid #1e293b',
                   padding: '16px',
                   borderRadius: '12px',
                   fontSize: '20px',
                   fontWeight: 'black',
-                  color: '#4ade80',
-                  outline: 'none'
+                  color: tnaError ? '#f87171' : '#4ade80',
+                  outline: 'none',
+                  transition: 'border-color 0.2s, color 0.2s'
                 }}
               />
+              {tnaError && (
+                <div style={{
+                  marginTop: '8px',
+                  padding: '10px 14px',
+                  backgroundColor: 'rgba(248, 113, 113, 0.1)',
+                  border: '1px solid rgba(248, 113, 113, 0.3)',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  color: '#f87171',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  ⚠ La TNA ingresada no corresponde a ninguna caución disponible para {plazoSim} {plazoSim === 1 ? 'día' : 'días'}.
+                  La tasa de mercado es <strong>{mktCaucion?.tna ?? '—'}%</strong>.
+                  <button
+                    onClick={() => { setTnaSim(mktCaucion?.tna ?? ''); setTnaError(false); }}
+                    style={{
+                      marginLeft: 'auto',
+                      backgroundColor: 'rgba(248, 113, 113, 0.2)',
+                      border: '1px solid #f87171',
+                      borderRadius: '6px',
+                      color: '#f87171',
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      padding: '4px 10px',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    Usar {mktCaucion?.tna}%
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          <div style={{
-            backgroundColor: 'rgba(15, 23, 42, 0.6)',
-            padding: '16px',
-            borderRadius: '12px',
-            border: '1px solid #1e293b'
-          }}>
-            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 'bold', marginBottom: '4px', textTransform: 'uppercase' }}>
-              Interés Ganado en {plazoSim} {plazoSim === 1 ? 'día' : 'días'}
+          {tnaError ? (
+            <div style={{
+              gridColumn: '1 / -1',
+              backgroundColor: 'rgba(248, 113, 113, 0.05)',
+              padding: '20px',
+              borderRadius: '12px',
+              border: '1px solid rgba(248, 113, 113, 0.3)',
+              textAlign: 'center',
+              color: '#f87171',
+              fontWeight: 'bold',
+              fontSize: '15px'
+            }}>
+              ⚠ Corregí la TNA para ver el resultado del simulador
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 'black', color: '#4ade80' }}>
-              + ${rendimientoSimulado.toFixed(2)}
-            </div>
-          </div>
+          ) : (
+            <>
+              <div style={{
+                backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                padding: '16px',
+                borderRadius: '12px',
+                border: '1px solid #1e293b'
+              }}>
+                <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 'bold', marginBottom: '4px', textTransform: 'uppercase' }}>
+                  Interés Ganado en {plazoSim} {plazoSim === 1 ? 'día' : 'días'}
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: 'black', color: '#4ade80' }}>
+                  + ${rendimientoSimulado.toFixed(2)}
+                </div>
+              </div>
 
-          <div style={{
-            backgroundColor: 'rgba(74, 222, 128, 0.1)',
-            padding: '16px',
-            borderRadius: '12px',
-            border: '2px solid rgba(74, 222, 128, 0.3)'
-          }}>
-            <div style={{ fontSize: '11px', color: '#4ade80', fontWeight: 'black', marginBottom: '4px', textTransform: 'uppercase' }}>
-              Total a Recibir (Capital + Interés)
-            </div>
-            <div style={{ fontSize: '24px', fontWeight: 'black', color: '#4ade80' }}>
-              $ {(montoInversion + rendimientoSimulado).toFixed(2)}
-            </div>
-          </div>
+              <div style={{
+                backgroundColor: 'rgba(74, 222, 128, 0.1)',
+                padding: '16px',
+                borderRadius: '12px',
+                border: '2px solid rgba(74, 222, 128, 0.3)'
+              }}>
+                <div style={{ fontSize: '11px', color: '#4ade80', fontWeight: 'black', marginBottom: '4px', textTransform: 'uppercase' }}>
+                  Total a Recibir (Capital + Interés)
+                </div>
+                <div style={{ fontSize: '24px', fontWeight: 'black', color: '#4ade80' }}>
+                  $ {(montoInversion + rendimientoSimulado).toFixed(2)}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 

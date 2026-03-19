@@ -5,6 +5,7 @@ import ONDetailView from './components/bonos/ONDetailView';
 import BondTabs from './components/bonos/BondTabs';
 import ONTable from './components/bonos/ONTable';
 import Portfolio from './components/portfolio/Portfolio';
+import PortfolioFCI from './components/portfolio/PortfolioFCI';
 import CaucionesView from './components/cauciones/CaucionesView';
 import FCIView from './components/fci/FCIView';
 import FinancialTicker from './components/shared/FinancialTicker';
@@ -196,318 +197,94 @@ function App() {
       height: '100vh',
       backgroundColor: '#0b0f1a',
       color: '#f1f5f9',
-      fontFamily: 'sans-serif'
+      fontFamily: 'sans-serif',
+      overflow: 'hidden'
     }}>
-      <FinancialTicker />
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <aside style={{
-          width: '256px',
-          backgroundColor: '#0f172a',
-          borderRight: '1px solid #1e293b',
-          padding: '32px',
-          display: 'flex',
-          flexDirection: 'column'
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            marginBottom: '48px',
-            padding: '20px 0'
-          }}>
-            <img
-              src={logo}
-              alt="AFI Logo"
-              style={{
-                width: '150%',
-                maxWidth: '220px',
-                height: 'auto',
-                mixBlendMode: 'screen'
-              }}
-            />
-          </div>
+      {/* ── TOP NAV HORIZONTAL ── */}
+      <header style={{
+        display: 'flex',
+        alignItems: 'center',
+        backgroundColor: '#0f172a',
+        borderBottom: '1px solid #1e293b',
+        padding: '0 24px',
+        height: '52px',
+        flexShrink: 0,
+        gap: '8px'
+      }}>
+        {/* Logo */}
+        <img
+          src={logo}
+          alt="AFI"
+          style={{ height: '32px', width: 'auto', mixBlendMode: 'screen', marginRight: '16px', flexShrink: 0 }}
+        />
 
-          <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
-            
-
-            
-
-          
+        {/* Nav items */}
+        {[
+          { view: 'ranking',     icon: <BarChart3 size={14} />,  label: 'Ranking'       },
+          { view: 'macro',       icon: <Activity size={14} />,   label: 'Macro'         },
+          { view: 'noticias',    icon: <Newspaper size={14} />,  label: 'Noticias'      },
+          { view: 'mercados',    icon: <TrendingUp size={14} />, label: 'Bonos & ONs'   },
+          { view: 'cauciones',   icon: <Clock size={14} />,      label: 'Cauciones'     },
+          { view: 'fcis',        icon: <PieChart size={14} />,   label: 'FCIs'          },
+          { view: 'fci-ranking', icon: <BarChart3 size={14} />,  label: 'Ranking FCIs'  },
+          { view: 'portfolio',   icon: <Briefcase size={14} />,  label: 'Portfolio'     },
+        ].map(({ view, icon, label }) => {
+          const active = currentView === view;
+          return (
             <button
-              onClick={() => setCurrentView('ranking')}
+              key={view}
+              onClick={() => setCurrentView(view)}
               style={{
-                width: '100%',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '12px',
-                padding: '12px',
-                backgroundColor: currentView === 'ranking' ? '#1e293b' : 'transparent',
-                color: currentView === 'ranking' ? '#60a5fa' : '#64748b',
-                borderRadius: '12px',
+                gap: '6px',
+                padding: '6px 12px',
+                backgroundColor: active ? '#1e293b' : 'transparent',
+                color: active ? '#60a5fa' : '#64748b',
+                borderRadius: '8px',
                 fontWeight: 'bold',
-                transition: 'all 0.3s',
+                fontSize: '12px',
+                transition: 'all 0.2s',
                 cursor: 'pointer',
-                border: 'none'
+                border: active ? '1px solid #334155' : '1px solid transparent',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
               }}
-              onMouseOver={(e) => {
-                if (currentView !== 'ranking') {
-                  e.currentTarget.style.backgroundColor = '#1e293b';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (currentView !== 'ranking') {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }
-              }}
+              onMouseOver={(e) => { if (!active) e.currentTarget.style.backgroundColor = '#1e293b'; }}
+              onMouseOut={(e)  => { if (!active) e.currentTarget.style.backgroundColor = 'transparent'; }}
             >
-              <BarChart3 size={18} /> Ranking
+              {icon} {label}
             </button>
+          );
+        })}
 
-            <button
-              onClick={() => setCurrentView('macro')}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px',
-                backgroundColor: currentView === 'macro' ? '#1e293b' : 'transparent',
-                color: currentView === 'macro' ? '#60a5fa' : '#64748b',
-                borderRadius: '12px',
-                fontWeight: 'bold',
-                transition: 'all 0.3s',
-                cursor: 'pointer',
-                border: 'none'
-              }}
-              onMouseOver={(e) => {
-                if (currentView !== 'macro') {
-                  e.currentTarget.style.backgroundColor = '#1e293b';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (currentView !== 'macro') {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }
-              }}
-            >
-              <Activity size={18} /> Dashboard Macro
-            </button>
-
-            <button
-              onClick={() => setCurrentView('noticias')}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px',
-                backgroundColor: currentView === 'noticias' ? '#1e293b' : 'transparent',
-                color: currentView === 'noticias' ? '#60a5fa' : '#64748b',
-                borderRadius: '12px',
-                fontWeight: 'bold',
-                transition: 'all 0.3s',
-                cursor: 'pointer',
-                border: 'none'
-              }}
-              onMouseOver={(e) => {
-                if (currentView !== 'noticias') {
-                  e.currentTarget.style.backgroundColor = '#1e293b';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (currentView !== 'noticias') {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }
-              }}
-            >
-              <Newspaper size={18} /> Noticias
-            </button>
-
-            <button
-              onClick={() => setCurrentView('mercados')}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px',
-                backgroundColor: currentView === 'mercados' ? '#1e293b' : 'transparent',
-                color: currentView === 'mercados' ? '#60a5fa' : '#64748b',
-                borderRadius: '12px',
-                fontWeight: 'bold',
-                transition: 'all 0.3s',
-                cursor: 'pointer',
-                border: 'none'
-              }}
-              onMouseOver={(e) => {
-                if (currentView !== 'mercados') {
-                  e.currentTarget.style.backgroundColor = '#1e293b';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (currentView !== 'mercados') {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }
-              }}
-            >
-              <TrendingUp size={18} /> Bonos & ONs
-            </button>
-
-            <button
-              onClick={() => setCurrentView('cauciones')}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px',
-                backgroundColor: currentView === 'cauciones' ? '#1e293b' : 'transparent',
-                color: currentView === 'cauciones' ? '#60a5fa' : '#64748b',
-                borderRadius: '12px',
-                fontWeight: 'bold',
-                transition: 'all 0.3s',
-                cursor: 'pointer',
-                border: 'none'
-              }}
-              onMouseOver={(e) => {
-                if (currentView !== 'cauciones') {
-                  e.currentTarget.style.backgroundColor = '#1e293b';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (currentView !== 'cauciones') {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }
-              }}
-            >
-              <Clock size={18} /> Cauciones
-            </button>
-
-            <button
-              onClick={() => setCurrentView('fcis')}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px',
-                backgroundColor: currentView === 'fcis' ? '#1e293b' : 'transparent',
-                color: currentView === 'fcis' ? '#60a5fa' : '#64748b',
-                borderRadius: '12px',
-                fontWeight: 'bold',
-                transition: 'all 0.3s',
-                cursor: 'pointer',
-                border: 'none'
-              }}
-              onMouseOver={(e) => {
-                if (currentView !== 'fcis') {
-                  e.currentTarget.style.backgroundColor = '#1e293b';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (currentView !== 'fcis') {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }
-              }}
-            >
-              <PieChart size={18} /> FCIs
-            </button>
-
-            <button
-              onClick={() => setCurrentView('fci-ranking')}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px',
-                backgroundColor: currentView === 'fci-ranking' ? '#1e293b' : 'transparent',
-                color: currentView === 'fci-ranking' ? '#60a5fa' : '#64748b',
-                borderRadius: '12px',
-                fontWeight: 'bold',
-                transition: 'all 0.3s',
-                cursor: 'pointer',
-                border: 'none'
-              }}
-              onMouseOver={(e) => {
-                if (currentView !== 'fci-ranking') {
-                  e.currentTarget.style.backgroundColor = '#1e293b';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (currentView !== 'fci-ranking') {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }
-              }}
-            >
-              <BarChart3 size={18} /> Ranking FCIs
-            </button>
-
-            <div style={{
-              height: '1px',
-              backgroundColor: '#1e293b',
-              margin: '16px 0'
-            }}></div>
-
-            <button
-              onClick={() => setCurrentView('portfolio')}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px',
-                backgroundColor: currentView === 'portfolio' ? '#1e293b' : 'transparent',
-                color: currentView === 'portfolio' ? '#60a5fa' : '#64748b',
-                borderRadius: '12px',
-                fontWeight: 'bold',
-                transition: 'all 0.3s',
-                cursor: 'pointer',
-                border: 'none'
-              }}
-              onMouseOver={(e) => {
-                if (currentView !== 'portfolio') {
-                  e.currentTarget.style.backgroundColor = '#1e293b';
-                }
-              }}
-              onMouseOut={(e) => {
-                if (currentView !== 'portfolio') {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }
-              }}
-            >
-              <Briefcase size={18} /> Mi Portfolio
-            </button>
-          </nav>
-
+        {/* Spacer + market status */}
+        <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
           {apiMetadata && (
             <div style={{
-              marginTop: 'auto',
-              padding: '16px',
-              borderRadius: '12px',
+              padding: '4px 12px',
+              borderRadius: '8px',
               fontSize: '11px',
+              fontWeight: 'bold',
               border: `1px solid ${apiMetadata.market_status === 'OPEN' ? '#22c55e' : '#ef4444'}`,
-              background: apiMetadata.market_status === 'OPEN' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)'
+              background: apiMetadata.market_status === 'OPEN' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+              color: apiMetadata.market_status === 'OPEN' ? '#4ade80' : '#f87171',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
             }}>
-              <div style={{
-                fontWeight: 'black',
-                color: apiMetadata.market_status === 'OPEN' ? '#4ade80' : '#f87171',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                justifyContent: 'center',
-                fontSize: '14px'
-              }}>
-                {apiMetadata.market_status === 'OPEN' ? '🟢 Online' : '🔴 Cerrado'}
-              </div>
+              {apiMetadata.market_status === 'OPEN' ? '🟢 Online' : '🔴 Cerrado'}
             </div>
           )}
-        </aside>
+        </div>
+      </header>
 
-        <main style={{ flex: 1, overflow: 'auto' }}>
+      {/* ── FINANCIAL TICKER ── */}
+      <FinancialTicker />
+
+      {/* ── MAIN CONTENT ── */}
+      <main style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+
           
 
           
@@ -533,8 +310,8 @@ function App() {
           )}
 
           {currentView === 'portfolio' && (
-  <Portfolio bonds={[...bonos, ...letras, ...bopreal]} />
-)}
+            <PortfolioFCI />
+          )}
 
           {currentView === 'ranking' && (
             <RankingDashboard />
@@ -835,7 +612,6 @@ function App() {
             </div>
           )}
         </main>
-      </div>
 
       <style>{`
         @keyframes spin {
