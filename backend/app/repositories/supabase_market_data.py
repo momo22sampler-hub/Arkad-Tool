@@ -461,7 +461,7 @@ class SupabaseMarketData:
                     "nombre": fondo_nombre,
                     "tipo": tipo,
                     "categoria": categoria,
-                    "moneda": "ARS",           # Mayoría de FCIs locales son ARS
+                    "moneda": precio_row.get("moneda") or rank_row.get("moneda") or "ARS",
                     "nav": vcp_hoy,
                     "vcp": vcp_hoy,
                     "nav_anterior": nav_anterior,

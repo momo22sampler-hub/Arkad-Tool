@@ -505,10 +505,11 @@ function CategoryTable({ categoria, funds }) {
 // ─── FCIRankingDashboard ──────────────────────────────────────────────────────
 
 export default function FCIRankingDashboard() {
-  const [data, setData]       = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState(null);
-  const [openCat, setOpenCat] = useState(null);
+  const [data, setData]           = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState(null);
+  const [openCat, setOpenCat]     = useState(null);
+  const [monedaRanking, setMonedaRanking] = useState('ARS');
 
   useEffect(() => {
     fetch("https://arkad-tool.onrender.com/api/v1/fcis/ranking")
@@ -523,13 +524,14 @@ export default function FCIRankingDashboard() {
   // Agrupar por categoría y ordenar por score promedio desc
   const byCategory = useMemo(() => {
     if (!data?.ranking) return [];
+    // Filtrar por moneda activa
+    const rankingFiltrado = data.ranking.filter(f => (f.moneda || 'ARS') === monedaRanking);
     const map = {};
-    for (const fund of data.ranking) {
+    for (const fund of rankingFiltrado) {
       const cat = fund.categoria || "Otro";
       if (!map[cat]) map[cat] = [];
       map[cat].push(fund);
     }
-    // cada categoria ya viene ordenada por score desc desde el backend
     return Object.entries(map)
       .map(([cat, funds]) => ({
         categoria: cat,
@@ -538,7 +540,7 @@ export default function FCIRankingDashboard() {
         topScore: funds[0]?.score || 0,
       }))
       .sort((a, b) => b.avgScore - a.avgScore);
-  }, [data]);
+  }, [data, monedaRanking]);
 
   const maxScore = useMemo(
     () => byCategory.reduce((m, c) => Math.max(m, c.topScore), 0),
@@ -571,6 +573,29 @@ export default function FCIRankingDashboard() {
             <div className="fci-page-header">
               <span className="fci-page-title">Ranking · FCIs</span>
               <span className="fci-page-date">{today}</span>
+            </div>
+
+            {/* Solapas ARS / USD */}
+            <div style={{ display: 'flex', gap: '8px', padding: '0 0 20px 0' }}>
+              {[
+                { value: 'ARS', label: '$ ARS',    color: '#22c55e', count: data.ranking.filter(f=>(f.moneda||'ARS')==='ARS').length },
+                { value: 'USD', label: 'u$d USD',  color: '#3b82f6', count: data.ranking.filter(f=>f.moneda==='USD').length },
+              ].map(tab => (
+                <button key={tab.value}
+                  onClick={() => { setMonedaRanking(tab.value); setOpenCat(null); }}
+                  style={{
+                    padding: '7px 16px', borderRadius: '8px', fontSize: '12px', fontWeight: 700,
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+                    background:    monedaRanking === tab.value ? `${tab.color}22` : '#1e1e24',
+                    border:        `1px solid ${monedaRanking === tab.value ? tab.color : '#2a2a35'}`,
+                    color:         monedaRanking === tab.value ? tab.color : '#64748b',
+                  }}>
+                  {tab.label}
+                  <span style={{ background: monedaRanking === tab.value ? tab.color : '#2a2a35', color: 'white', borderRadius: '4px', padding: '1px 6px', fontSize: '10px' }}>
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
             </div>
 
             {/* ── Ranking por categoría (panel clickeable) ── */}

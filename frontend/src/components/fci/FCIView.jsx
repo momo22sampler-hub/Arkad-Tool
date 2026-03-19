@@ -52,6 +52,7 @@ const getRiesgoColor = (riesgo) => {
 export default function FCIView({ fcis, loading }) {
   const [filterCategoria, setFilterCategoria] = useState('all');
   const [selectedFCI,     setSelectedFCI]     = useState(null);
+  const [monedaFCI,       setMonedaFCI]       = useState('ARS');
 
   if (selectedFCI) {
     return <FCIDetailView fci={selectedFCI} onBack={() => setSelectedFCI(null)} />;
@@ -66,13 +67,17 @@ export default function FCIView({ fcis, loading }) {
     );
   }
 
-  // Categorías disponibles dinámicamente desde los datos
-  const categorias = ['all', ...Array.from(new Set(fcis.map(f => f.categoria).filter(Boolean))).sort()];
+  // Categorías disponibles dinámicamente desde los datos (filtradas por moneda)
+  const fcisPorMoneda = fcis.filter(f => (f.moneda || 'ARS') === monedaFCI);
+  const categorias    = ['all', ...Array.from(new Set(fcisPorMoneda.map(f => f.categoria).filter(Boolean))).sort()];
 
-  const filteredFCIs = fcis.filter(fci => {
-    const catMatch    = filterCategoria === 'all' || fci.categoria === filterCategoria;
+  const filteredFCIs = fcisPorMoneda.filter(fci => {
+    const catMatch = filterCategoria === 'all' || fci.categoria === filterCategoria;
     return catMatch;
   });
+
+  const cntARS = fcis.filter(f => (f.moneda || 'ARS') === 'ARS').length;
+  const cntUSD = fcis.filter(f => f.moneda === 'USD').length;
 
   // Mejor TEA del universo (desde metrics.tea)
   const bestTEA = fcis.reduce((best, f) => {
@@ -122,6 +127,29 @@ export default function FCIView({ fcis, loading }) {
 
       {/* ── FILTROS ────────────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: '16px', marginBottom: '24px', flexWrap: 'wrap', alignItems: 'center' }}>
+
+        {/* Solapas ARS / USD */}
+        <div style={{ display: 'flex', gap: '6px' }}>
+          {[
+            { value: 'ARS', label: '$ ARS', count: cntARS, color: '#22c55e' },
+            { value: 'USD', label: 'u$d USD', count: cntUSD, color: '#3b82f6' },
+          ].map(tab => (
+            <button key={tab.value} onClick={() => { setMonedaFCI(tab.value); setFilterCategoria('all'); }}
+              style={{
+                padding: '8px 16px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold',
+                cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '6px',
+                backgroundColor: monedaFCI === tab.value ? `${tab.color}22` : '#1e293b',
+                color:           monedaFCI === tab.value ? tab.color : '#64748b',
+                border:          `1px solid ${monedaFCI === tab.value ? tab.color : '#334155'}`,
+              }}>
+              {tab.label}
+              <span style={{ background: monedaFCI === tab.value ? tab.color : '#334155', color: 'white', borderRadius: '4px', padding: '1px 6px', fontSize: '10px' }}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
         <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 'black', textTransform: 'uppercase' }}>Filtrar:</span>
 
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
