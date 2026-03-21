@@ -148,11 +148,8 @@ export default function FCIDetailView({ fci, onBack }) {
   const valorActual = parseFloat(cuotapartes) * vcpActual;
 
   // Performance diaria
-  const perfDiariaCalc = (() => {
-    const hoy = fci.nav, ayer = fci.nav_anterior;
-    if (hoy && ayer && ayer !== 0) return ((hoy - ayer) / ayer) * 100;
-    return fci.performance_diaria || 0;
-  })();
+  // Performance diaria: usar directamente el valor del backend (fuente CNV)
+  const perfDiariaCalc = fci.performance_diaria ?? 0;
 
   // Métricas desde fci.metrics
   const teaRaw      = metricRaw(fci, 'tea');

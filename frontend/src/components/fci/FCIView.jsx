@@ -181,13 +181,8 @@ export default function FCIView({ fcis, loading }) {
             {filteredFCIs.map((fci, i) => {
               const riesgoStyle = getRiesgoColor(fci.riesgo);
 
-              // Performance diaria: preferir nav vs nav_anterior, fallback a performance_diaria
-              const perfDiaria = (() => {
-                const hoy  = fci.nav;
-                const ayer = fci.nav_anterior;
-                if (hoy && ayer && ayer !== 0) return ((hoy - ayer) / ayer) * 100;
-                return fci.performance_diaria || fci.variacion_diaria || 0;
-              })();
+              // Performance diaria: usar variacion_diaria_cnv del backend (fuente CNV)
+              const perfDiaria = fci.performance_diaria ?? 0;
 
               // Métricas desde fondo.metrics (con fallback seguro)
               const teaRaw      = fmtMetricRaw(fci, 'tea');
