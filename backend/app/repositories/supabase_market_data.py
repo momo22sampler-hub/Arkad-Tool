@@ -415,12 +415,13 @@ class SupabaseMarketData:
                 vcp_hoy = float(precio_row.get("vcp") or 0)
                 tipo = precio_row.get("tipo") or ""
 
-                # Performance diaria: calculada desde las ultimas 2 fechas del historico.
-                # Evita acumular dias sin datos de Argentinadatos — si el extractor
-                # no recibio datos 1-2 dias, variacion_diaria de la tabla acumula N dias
-                # como si fueran uno solo.
+                # Performance diaria: usar variacion_diaria_cnv del Excel CNV si existe
+                # Es la variación real del día calculada por CNV (VCP hoy vs VCP ayer)
+                # Fallback: calcular desde las últimas 2 fechas del histórico
                 perf_diaria = 0.0
-                if fondo_nombre in historico:
+                if precio_row.get("variacion_diaria_cnv") is not None:
+                    perf_diaria = round(float(precio_row["variacion_diaria_cnv"]), 2)
+                elif fondo_nombre in historico:
                     hist_ord = sorted(historico[fondo_nombre], key=lambda x: x["fecha"])
                     hist_validos = [h for h in hist_ord if h["vcp"] > 0]
                     if len(hist_validos) >= 2:
