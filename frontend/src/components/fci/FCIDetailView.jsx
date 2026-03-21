@@ -195,7 +195,7 @@ export default function FCIDetailView({ fci, onBack }) {
               {[
                 { label: fci.categoria || 'Sin categoría', bg: 'rgba(139,92,246,0.1)', color: '#a78bfa', border: 'rgba(139,92,246,0.3)' },
                 { label: fci.moneda || 'ARS', bg: fci.moneda === 'USD' ? 'rgba(59,130,246,0.1)' : 'rgba(34,197,94,0.1)', color: fci.moneda === 'USD' ? '#60a5fa' : '#4ade80', border: fci.moneda === 'USD' ? 'rgba(59,130,246,0.3)' : 'rgba(34,197,94,0.3)' },
-                ...(fci.riesgo ? [{ label: `Riesgo ${fci.riesgo}`, bg: 'rgba(251,191,36,0.1)', color: '#fbbf24', border: 'rgba(251,191,36,0.3)' }] : []),
+                ...(fci.calificacion ? [{ label: fci.calificacion, bg: 'rgba(251,191,36,0.1)', color: '#fbbf24', border: 'rgba(251,191,36,0.3)' }] : []),
               ].map((tag, i) => (
                 <span key={i} style={{ fontSize: '10px', padding: '4px 12px', borderRadius: '8px', fontWeight: 'black', textTransform: 'uppercase', backgroundColor: tag.bg, color: tag.color, border: `1px solid ${tag.border}` }}>{tag.label}</span>
               ))}
@@ -259,6 +259,34 @@ export default function FCIDetailView({ fci, onBack }) {
               ))}
             </div>
           </section>
+
+          {/* ── RENDIMIENTOS CNV ─────────────────────────────────────────── */}
+          {(fci.rendimiento_30d != null || fci.rendimiento_ytd != null || fci.rendimiento_12m != null) && (
+          <section>
+            <h3 style={{ fontSize: '12px', fontWeight: 'black', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <TrendingUp size={14} /> Rendimientos (fuente: CNV)
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+              {[
+                { label: 'Últ. 30 días',  value: fci.rendimiento_30d,  desc: '~27 feb' },
+                { label: 'En el año',     value: fci.rendimiento_ytd,  desc: 'desde 30 dic' },
+                { label: 'Últ. 12 meses', value: fci.rendimiento_12m,  desc: '~28 feb año ant.' },
+              ].map((r, i) => {
+                const v = r.value;
+                const color = v == null ? '#64748b' : v > 0 ? '#4ade80' : v < 0 ? '#ef4444' : '#94a3b8';
+                return (
+                  <div key={i} style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', padding: '16px', borderRadius: '10px' }}>
+                    <div style={{ fontSize: '10px', color: '#64748b', fontWeight: 'black', textTransform: 'uppercase', marginBottom: '4px' }}>{r.label}</div>
+                    <div style={{ fontSize: '22px', fontWeight: 'black', color, marginBottom: '4px' }}>
+                      {v != null ? `${v > 0 ? '+' : ''}${v.toFixed(2)}%` : '—'}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#475569' }}>{r.desc}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+          )}
 
           {/* ── COMPOSICIÓN DE CARTERA ────────────────────────────────────── */}
           <section>
@@ -338,17 +366,21 @@ export default function FCIDetailView({ fci, onBack }) {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '14px' }}>
               {[
-                { label: 'Administradora', value: fci.administradora || fci.emisor || '—' },
-                { label: 'Categoría',      value: fci.categoria || '—' },
-                { label: 'Tipo',           value: fci.tipo || '—' },
-                { label: 'Moneda',         value: fci.moneda || '—' },
-                { label: 'Horizonte',      value: fci.horizonte || '—' },
-                { label: 'Riesgo',         value: fci.riesgo || '—' },
-                { label: 'Liquidez',       value: fci.liquidez || '—' },
-                { label: 'Com. Admin',     value: fci.comision_admin != null ? `${fci.comision_admin}% anual` : '—' },
-                { label: 'Com. Suscripción', value: fci.comision_suscripcion != null ? `${fci.comision_suscripcion}%` : '—' },
-                { label: 'Mínimo',         value: fci.minimo_suscripcion != null ? `${fci.moneda || 'ARS'} ${fci.minimo_suscripcion.toLocaleString()}` : '—' },
-                { label: 'Última Act.',    value: fci.updated_at ? new Date(fci.updated_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }) : '—' },
+                { label: 'Sociedad Gerente',   value: fci.administradora || '—' },
+                { label: 'Soc. Depositaria',   value: fci.depositaria || '—' },
+                { label: 'Calificación',        value: fci.calificacion || '—' },
+                { label: 'Categoría',           value: fci.categoria || '—' },
+                { label: 'Moneda',              value: fci.moneda || '—' },
+                { label: 'Horizonte',           value: fci.horizonte || '—' },
+                { label: 'Liquidez',            value: fci.liquidez || '—' },
+                { label: 'Honorarios SG',       value: fci.honorarios_sg != null ? `${fci.honorarios_sg}% anual` : '—' },
+                { label: 'Honorarios SD',       value: fci.honorarios_sd != null ? `${fci.honorarios_sd}% anual` : '—' },
+                { label: 'Gastos Gestión',      value: fci.gastos_gestion != null && fci.gastos_gestion > 0 ? `${fci.gastos_gestion}%` : '—' },
+                { label: 'Com. Suscripción',    value: fci.comision_suscripcion != null ? `${fci.comision_suscripcion}%` : '—' },
+                { label: 'Com. Rescate',        value: fci.comision_rescate != null ? `${fci.comision_rescate}%` : '—' },
+                { label: 'Com. Transferencia',  value: fci.comision_transferencia != null && fci.comision_transferencia > 0 ? `${fci.comision_transferencia}%` : '—' },
+                { label: 'Mínimo Inversión',    value: fci.minimo_suscripcion != null ? `${fci.moneda || 'ARS'} ${Number(fci.minimo_suscripcion).toLocaleString('es-AR')}` : '—' },
+                { label: 'Última Act.',         value: fci.updated_at ? new Date(fci.updated_at).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' }) : '—' },
               ].map((item, i, arr) => (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: i < arr.length - 1 ? '1px solid #1e293b' : 'none' }}>
                   <span style={{ color: '#64748b' }}>{item.label}</span>

@@ -442,11 +442,11 @@ class SupabaseMarketData:
 
                 # Datos del ranking si existe
                 rank_row = fondos_rankeados.get(fondo_nombre, {})
-                rend_90d = float(rank_row.get("rendimiento_90d") or 0)
+                rend_90d  = float(rank_row.get("rendimiento_90d")  or 0)
                 rend_180d = float(rank_row.get("rendimiento_180d") or 0)
 
-                # Categoría y metadata derivada del tipo
-                categoria, riesgo, liquidez = self._derivar_metadata_fci(tipo)
+                # Categoría desde tipo (solo para clasificar, sin hardcodes de riesgo/liquidez)
+                categoria = self._derivar_categoria(tipo)
 
                 # nav_anterior: último VCP del histórico (para el frontend)
                 nav_anterior = None
@@ -457,32 +457,42 @@ class SupabaseMarketData:
                         nav_anterior = anteriores[-1]["vcp"]
 
                 result.append({
-                    "ticker": fondo_nombre,   # FCI no tiene ticker corto, usamos nombre como ID
-                    "nombre": fondo_nombre,
-                    "tipo": tipo,
-                    "categoria": categoria,
-                    "moneda": precio_row.get("moneda") or rank_row.get("moneda") or "ARS",
-                    "nav": vcp_hoy,
-                    "vcp": vcp_hoy,
-                    "nav_anterior": nav_anterior,
+                    "ticker":             fondo_nombre,
+                    "nombre":             fondo_nombre,
+                    "fondo":              fondo_nombre,
+                    "tipo":               tipo,
+                    "categoria":          categoria,
+                    "moneda":             precio_row.get("moneda") or rank_row.get("moneda") or "ARS",
+                    "nav":                vcp_hoy,
+                    "vcp":                vcp_hoy,
+                    "nav_anterior":       nav_anterior,
                     "performance_diaria": perf_diaria,
-                    "performance_30d": perf_30d,
-                    "rendimiento_90d": rend_90d,
-                    "rendimiento_180d": rend_180d,
-                    "tea_proyectada": tea_proyectada,
-                    "patrimonio": float(precio_row.get("patrimonio") or 0),
-                    "score": float(rank_row.get("score") or 0),
-                    "fecha": str(precio_row.get("fecha") or ""),
-                    "updated_at": str(precio_row.get("updated_at") or ""),
-                    # Metadata fija por categoría
-                    "riesgo": riesgo,
-                    "liquidez": liquidez,
-                    "comision_admin": self._comision_por_tipo(tipo),
-                    "minimo_suscripcion": 1000,
-                    "comision_suscripcion": 0,
-                    "comision_rescate": 0,
-                    "horizonte": self._horizonte_por_tipo(tipo),
-                    "administradora": self._extraer_administradora(fondo_nombre),
+                    "performance_30d":    perf_30d,
+                    "rendimiento_90d":    rend_90d,
+                    "rendimiento_180d":   rend_180d,
+                    "rendimiento_ytd":    float(precio_row.get("rendimiento_ytd") or 0),
+                    "rendimiento_12m":    float(precio_row.get("rendimiento_12m") or 0),
+                    "tea_proyectada":     tea_proyectada,
+                    "patrimonio":         float(precio_row.get("patrimonio") or 0),
+                    "score":              float(rank_row.get("score") or 0),
+                    "fecha":              str(precio_row.get("fecha") or ""),
+                    "updated_at":         str(precio_row.get("updated_at") or ""),
+                    # Ficha técnica real desde fci_precios_hoy (poblada por fci_precios.py)
+                    "administradora":          precio_row.get("administradora"),
+                    "depositaria":             precio_row.get("depositaria"),
+                    "calificacion":            precio_row.get("calificacion"),
+                    "horizonte":               precio_row.get("horizonte"),
+                    "liquidez":                precio_row.get("liquidez"),
+                    "liquidez_dias":           precio_row.get("liquidez_dias"),
+                    "minimo_suscripcion":      precio_row.get("minimo_suscripcion"),
+                    "honorarios_sg":           precio_row.get("honorarios_sg"),
+                    "honorarios_sd":           precio_row.get("honorarios_sd"),
+                    "gastos_gestion":          precio_row.get("gastos_gestion"),
+                    "comision_suscripcion":    precio_row.get("comision_suscripcion"),
+                    "comision_rescate":        precio_row.get("comision_rescate"),
+                    "comision_transferencia":  precio_row.get("comision_transferencia"),
+                    # comision_admin = honorarios_sg (campo legacy que espera el frontend)
+                    "comision_admin":          precio_row.get("honorarios_sg"),
                 })
 
             # Ordenar por score descendente
@@ -818,40 +828,13 @@ class SupabaseMarketData:
         except Exception:
             return str(value)
 
-    def _derivar_metadata_fci(self, tipo: str):
-        """Deriva categoria, riesgo y liquidez desde el tipo de FCI."""
+    def _derivar_categoria(self, tipo: str) -> str:
+        """Deriva categoría legible desde el tipo interno (MM/RF/RV/MIXTO)."""
         tipo_upper = (tipo or "").upper()
         if "MM" in tipo_upper or "MONEY" in tipo_upper:
-            return "Money Market", "Bajo", "T+0"
-        elif "RF" in tipo_upper or "RENTA FIJA" in tipo_upper:
-            return "Renta Fija ARS", "Medio", "T+1"
+            return "Money Market"
         elif "RV" in tipo_upper or "RENTA VARIABLE" in tipo_upper:
-            return "Renta Variable Internacional", "Alto", "T+2"
+            return "Renta Variable"
         elif "MIXTO" in tipo_upper:
-            return "Mixto", "Medio", "T+1"
-        return "Otro", "Medio", "T+1"
-
-    def _comision_por_tipo(self, tipo: str) -> float:
-        tipo_upper = (tipo or "").upper()
-        if "MM" in tipo_upper or "MONEY" in tipo_upper:
-            return 0.5
-        elif "RV" in tipo_upper or "RENTA VARIABLE" in tipo_upper:
-            return 2.5
-        return 1.5
-
-    def _horizonte_por_tipo(self, tipo: str) -> str:
-        tipo_upper = (tipo or "").upper()
-        if "MM" in tipo_upper or "MONEY" in tipo_upper:
-            return "Corto Plazo (1-6 meses)"
-        elif "RF" in tipo_upper or "RENTA FIJA" in tipo_upper:
-            return "Mediano Plazo (6-24 meses)"
-        elif "RV" in tipo_upper or "RENTA VARIABLE" in tipo_upper:
-            return "Largo Plazo (+24 meses)"
-        return "Mediano Plazo"
-
-    def _extraer_administradora(self, nombre_fondo: str) -> str:
-        """Extrae nombre de administradora del nombre del fondo (heurística)."""
-        partes = nombre_fondo.split(" - ")
-        if len(partes) >= 1:
-            return partes[0].strip()
-        return nombre_fondo
+            return "Mixto"
+        return "Renta Fija"
