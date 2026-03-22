@@ -71,18 +71,29 @@ function App() {
   }, []);
 
   useEffect(() => {
-    fetch('https://arkad-tool.onrender.com/api/v1/fci')
-      .then(res => res.json())
-      .then(data => {
-        const normalized = (Array.isArray(data) ? data : []).map(fci => ({
-          ...fci,
-          metrics: {
-            tea:        fci.tea_proyectada  != null ? fci.tea_proyectada  / 100 : null,
-            momentum:   fci.performance_30d != null ? fci.performance_30d / 100 : null,
-            volatility: null,
-            drawdown:   null,
-          }
-        }));
+    Promise.all([
+      fetch('https://arkad-tool.onrender.com/api/v1/fci').then(r => r.json()),
+      fetch('https://arkad-tool.onrender.com/api/v1/fcis/ranking').then(r => r.json()),
+    ])
+      .then(([fciData, rankingData]) => {
+        // Indexar ranking por nombre de fondo
+        const rankingMap = {};
+        (rankingData.ranking || []).forEach(r => {
+          rankingMap[r.fondo] = r;
+        });
+
+        const normalized = (Array.isArray(fciData) ? fciData : []).map(fci => {
+          const eng = rankingMap[fci.fondo] || {};
+          return {
+            ...fci,
+            metrics: {
+              tea:        eng.tea         != null ? eng.tea         / 100 : (fci.tea_proyectada != null ? fci.tea_proyectada / 100 : null),
+              momentum:   eng.momentum    != null ? eng.momentum    / 100 : null,
+              volatility: eng.volatilidad != null ? eng.volatilidad / 100 : null,
+              drawdown:   eng.drawdown    != null ? eng.drawdown    / 100 : null,
+            }
+          };
+        });
         setFcis(normalized);
         setLoadingFCIs(false);
       })
